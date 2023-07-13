@@ -2,22 +2,25 @@
 // Fix the error
 // Make it compile
 // Run test
+#[derive(Debug, PartialEq)]
 struct Person {
     name: String,
     age: u8,
-    hobby: String
+    hobby: String,
 }
+
 fn exercise1() -> Person {
     let age = 30;
-    // Hobby = Rust 
+    let hobby = String::from("Rust");
     let p = Person {
         name: String::from("sunface"),
         age,
-        hobby: String::from("Rust")
+        hobby,
     };
 
     p
 }
+
 
 // Exercise 2
 // Fix the error
@@ -25,26 +28,26 @@ fn exercise1() -> Person {
 // Run test
 
 // Define the struct
-struct Agent  {
+struct Agent {
     name: String,
     age: u32,
 }
 
-// Implementation of methods for the Person struct
+// Implementation of methods for the Agent struct
 impl Agent {
-    // Create a new Person instance
+    // Create a new Agent instance
     fn new(name: String, age: u32) -> Agent {
         Agent { name, age }
     }
 
-    // Get the name of the person
+    // Get the name of the agent
     fn get_name(&self) -> &str {
-        todo!()
+        &self.name
     }
 
-    // Get the age of the person
+    // Get the age of the agent
     fn get_age(&self) -> u32 {
-        todo!()
+        self.age
     }
 }
 
@@ -61,21 +64,23 @@ impl Calculator {
         Calculator { value: 0 }
     }
 
-    fn add(&self, num: i32) {
+    fn add(&mut self, num: i32) {
         self.value += num;
     }
 
-    fn subtract(mut self, num: i32) {
+    fn subtract(&mut self, num: i32) {
         self.value -= num;
     }
-    fn clear(self) {
+
+    fn clear(&mut self) {
         self.value = 0;
     }
 
-    fn get_value(self) -> i32 {
+    fn get_value(&self) -> i32 {
         self.value
     }
 }
+
 
 // Exercise 4
 // Make it compile
@@ -95,16 +100,18 @@ fn exercise4() {
 
     let u2 = User {
         first: String::from("Mary"),
-        ..u1
-        
+        last: u1.last.clone(),
+        age: 0,
     };
 
     println!("user: {:#?}", u1);
-
+    println!("user: {:#?}", u2);
 }
+
 
 // Exercise 5
 // Make it compile
+#[derive(Debug, Clone)]
 struct Foo {
     str_val: String,
     int_val: i32,
@@ -121,12 +128,12 @@ fn exercise5() {
         int_val: 20,
     });
 
-    
-    let moved = foos[0];
+    let moved = foos[0].clone();
 
-    
-    let moved_field = foos[0].str_val;
+    let moved_field = foos[0].str_val.clone();
 }
+
+
 
 // Exercise 6
 // Structs contain data, but can also have logic. In this exercise we have
@@ -153,12 +160,12 @@ impl Package {
         }
     }
 
-    fn is_international(&self) -> ??? {
-        // Something goes here...
+    fn is_international(&self) -> bool {
+        self.sender_country != self.recipient_country
     }
 
-    fn get_fees(&self, cents_per_gram: i32) -> ??? {
-        // Something goes here...
+    fn get_fees(&self, cents_per_gram: i32) -> i32 {
+        self.weight_in_grams * cents_per_gram
     }
 }
 

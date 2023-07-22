@@ -2,7 +2,7 @@ use crate::traits::StateMachine;
 use crate::traits::hash;
 
 /// The keys on the ATM keypad
-#[derive(Clone, PartialEq, Debug, Hash)]
+#[derive(Clone, PartialEq, Debug, Hash, Eq)]
 pub enum Key {
     One,
     Two,
@@ -63,6 +63,22 @@ impl std::fmt::Display for Key {
     }
 }
 
+fn calculate_withdrawal_amount(keystrokes: &[Key]) -> u64 {
+    let mut amount = 0;
+    let mut multiplier = 1;
+    for key in keystrokes.iter().rev() {
+        match key {
+            Key::One => amount += 1 * multiplier,
+            Key::Two => amount += 2 * multiplier,
+            Key::Three => amount += 3 * multiplier,
+            Key::Four => amount += 4 * multiplier,
+            Key::Enter => break,
+        }
+        multiplier *= 10;
+    }
+    amount
+}
+
 impl StateMachine for Atm {
     type State = Atm;
     type Transition = Action;
@@ -98,67 +114,46 @@ impl StateMachine for Atm {
                     }
                     Auth::Authenticating(pin_hash) => {
                         let mut new_keystroke_register = starting_state.keystroke_register.clone();
-                        new_keystroke_register.push(key.clone());
 
-                        // Check if the ATM should transition to the Authenticated state
-                        if new_keystroke_register == vec![
-                            Key::One,
-                            Key::Two,
-                            Key::Three,
-                            Key::Four,
-                            Key::Enter,
-                        ] {
+                        // Check if the user presses the "Enter" key
+                        if *key == Key::Enter {
+                            // Calculate the new PIN hash based on the current keystrokes
+                            let new_pin_hash = hash(&new_keystroke_register);
+
+                            // Check if the entered PIN is correct
+                            if new_pin_hash == *pin_hash {
+                                return Atm {
+                                    cash_inside: starting_state.cash_inside,
+                                    expected_pin_hash: Auth::Authenticated,
+                                    keystroke_register: Vec::new(),
+                                };
+                            } else {
+                                // Incorrect PIN entered, reset to the Waiting state
+                                return Atm {
+                                    cash_inside: starting_state.cash_inside,
+                                    expected_pin_hash: Auth::Waiting,
+                                    keystroke_register: Vec::new(),
+                                };
+                            }
+                        } else {
+                            new_keystroke_register.push(key.clone());
+                            // Return the new state with the updated keystrokes
                             return Atm {
                                 cash_inside: starting_state.cash_inside,
-                                expected_pin_hash: Auth::Authenticated,
-                                keystroke_register: Vec::new(),
-                            };
-                        }
-
-                        // Calculate the new PIN hash based on the current keystrokes
-                        let pin_string: String = new_keystroke_register
-                            .iter()
-                            .map(|k| k.to_string())
-                            .collect();
-                        let new_pin_hash = hash(&pin_string);
-
-                        // Check if the PIN is correct after the user presses Enter
-                        if *key == Key::Enter && new_pin_hash == *pin_hash {
-                            return Atm {
-                                cash_inside: starting_state.cash_inside - 1,
-                                expected_pin_hash: Auth::Waiting,
-                                keystroke_register: Vec::new(),
-                            };
-                        } else if *key == Key::Enter {
-                            // Incorrect PIN entered, reset to the Waiting state
-                            return Atm {
-                                cash_inside: starting_state.cash_inside,
-                                expected_pin_hash: Auth::Waiting,
-                                keystroke_register: Vec::new(),
-                            };
-                        }
-
-                        // Return the new state with the updated keystrokes
-                        Atm {
-                            cash_inside: starting_state.cash_inside,
-                            expected_pin_hash: Auth::Authenticating(*pin_hash),
-                            keystroke_register: new_keystroke_register,
-                        }
+                                expected_pin_hash: Auth::Authenticating(*pin_hash),
+                                keystroke_register: new_keystroke_register,
+                            }
+                        };
                     }
                     Auth::Authenticated => {
                         // ATM is already authenticated, just add the pressed key to keystroke_register
                         let mut new_keystroke_register = starting_state.keystroke_register.clone();
-                        new_keystroke_register.push(key.clone());
 
-                        // Check if the entered keystrokes match the withdrawal amount
-                        let withdrawal_amount: Vec<Key> = vec![
-                            Key::One, Key::Four, Key::Enter
-                        ];
-                        if new_keystroke_register == withdrawal_amount {
-                            // Perform the withdrawal only if there's enough cash inside
-                            if starting_state.cash_inside >= 14 {
+                        if *key == Key::Enter {
+                            let withdraw_amount = calculate_withdrawal_amount(&starting_state.keystroke_register);
+                            if starting_state.cash_inside >= withdraw_amount {
                                 return Atm {
-                                    cash_inside: starting_state.cash_inside - 14,
+                                    cash_inside: starting_state.cash_inside - withdraw_amount,
                                     expected_pin_hash: Auth::Waiting,
                                     keystroke_register: Vec::new(),
                                 };
@@ -170,12 +165,13 @@ impl StateMachine for Atm {
                                     keystroke_register: Vec::new(),
                                 };
                             }
-                        }
-
-                        Atm {
-                            cash_inside: starting_state.cash_inside,
-                            expected_pin_hash: Auth::Authenticated,
-                            keystroke_register: new_keystroke_register,
+                        } else {
+                            new_keystroke_register.push(key.clone());
+                            return Atm {
+                                cash_inside: starting_state.cash_inside,
+                                expected_pin_hash: Auth::Authenticated,
+                                keystroke_register: new_keystroke_register,
+                            };
                         }
                     }
                 }
@@ -370,19 +366,19 @@ fn sm_3_try_to_withdraw_too_much() {
     assert_eq!(end, expected);
 }
 
-// #[test]
-// fn sm_3_withdraw_acceptable_amount() {
-//     let start = Atm {
-//         cash_inside: 10,
-//         expected_pin_hash: Auth::Authenticated,
-//         keystroke_register: vec![Key::One],
-//     };
-//     let end = Atm::next_state(&start, &Action::PressKey(Key::Enter));
-//     let expected = Atm {
-//         cash_inside: 9,
-//         expected_pin_hash: Auth::Waiting,
-//         keystroke_register: Vec::new(),
-//     };
+#[test]
+fn sm_3_withdraw_acceptable_amount() {
+    let start = Atm {
+        cash_inside: 10,
+        expected_pin_hash: Auth::Authenticated,
+        keystroke_register: vec![Key::One],
+    };
+    let end = Atm::next_state(&start, &Action::PressKey(Key::Enter));
+    let expected = Atm {
+        cash_inside: 9,
+        expected_pin_hash: Auth::Waiting,
+        keystroke_register: Vec::new(),
+    };
 
-//     assert_eq!(end, expected);
-// }
+    assert_eq!(end, expected);
+}
